@@ -25,59 +25,96 @@
         onAuthStateChanged(auth, (u) => {
             if (!u) window.location.href = "index.html";
             else {
-                onSnapshot(doc(db, "users", u.uid), (s) => { if(s.exists()){ uData = s.data(); renderUI(); fetchTeam(); } });
+                // Real-time listener for user data
+                onSnapshot(doc(db, "users", u.uid), (s) => { 
+                    if(s.exists()){ 
+                        uData = s.data(); 
+                        renderUI(); 
+                        fetchTeam(); 
+                    } 
+                });
                 onSnapshot(doc(db, "settings", "platform"), (s) => { if(s.exists()) document.getElementById('news').innerText = s.data().news; });
                 onSnapshot(query(collection(db, "transactions"), where("uid", "==", u.uid)), (s) => renderFinance(s.docs.map(d => d.data())));
             }
         });
 
         function renderUI() {
-            const days = uData.approvedDate ? (new Date() - uData.approvedDate.toDate()) / 86400000 : 0;
-            const total = (uData.investment || 0) * Math.pow(1.045, days);
+            // Fix 1: Balance Calculation Logic
+            const investment = Number(uData.investment) || 0;
+            let total = investment;
+
+            if (uData.approvedDate && investment > 0) {
+                const now = new Date();
+                const startDate = uData.approvedDate.toDate();
+                const diffTime = Math.max(0, now - startDate);
+                const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                
+                // 4.5% daily compounding or simple interest (Simple used here for stability)
+                total = investment + (investment * 0.045 * diffDays);
+            }
+
             document.getElementById('bal').innerText = "$" + total.toFixed(2);
-            document.getElementById('cap').innerText = "$" + (uData.investment || 0).toFixed(2);
-            document.getElementById('refL').value = window.location.origin + window.location.pathname.replace('dashboard.html', 'index.html') + "?ref=" + uData.username;
+            document.getElementById('cap').innerText = "$" + investment.toFixed(2);
+            
+            // Fix 2: Referral Link Logic
+            const baseUrl = window.location.origin + window.location.pathname.replace('dashboard.html', 'index.html');
+            const username = uData.username || "user";
+            document.getElementById('refL').value = baseUrl + "?ref=" + username;
         }
 
         async function fetchTeam() {
+            if(!uData.username) return;
             const q = query(collection(db, "users"), where("referredBy", "==", uData.username));
             const s = await getDocs(q);
             let act = 0, inact = 0;
-            s.forEach(d => d.data().investment >= 40 ? act++ : inact++);
+            s.forEach(d => {
+                const data = d.data();
+                (data.investment >= 40) ? act++ : inact++;
+            });
             document.getElementById('actT').innerText = act;
             document.getElementById('inactT').innerText = inact;
-            document.getElementById('salary').innerText = (act >= 10) ? "QUALIFIED ($150)" : "NOT ELIGIBLE";
+            document.getElementById('salary').innerText = (act >= 10 && uData.investment >= 1000) ? "QUALIFIED ($150)" : "NOT ELIGIBLE";
         }
 
         function renderFinance(txs) {
             let pD = 0, pW = 0, tW = 0;
-            const html = txs.sort((a,b) => b.timestamp - a.timestamp).map(t => {
-                if(t.status === "Pending") { t.type === "Deposit" ? pD += t.amount : pW += t.amount; }
-                if(t.status === "Approved" && t.type === "Withdrawal") tW += t.amount;
+            const html = txs.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(t => {
+                if(t.status === "Pending") { 
+                    t.type === "Deposit" ? pD += Number(t.amount) : pW += Number(t.amount); 
+                }
+                if(t.status === "Approved" && t.type === "Withdrawal") tW += Number(t.amount);
+                
+                const dateLabel = t.timestamp ? t.timestamp.toDate().toLocaleString() : 'Processing...';
+                
                 return `<div class="flex justify-between bg-white/5 p-3 rounded-xl mb-2 border border-white/5">
-                    <div class="text-[9px] uppercase"><p class="font-bold text-slate-300">${t.type}</p><p class="text-slate-600">${t.timestamp?.toDate().toLocaleString()}</p></div>
+                    <div class="text-[9px] uppercase"><p class="font-bold text-slate-300">${t.type}</p><p class="text-slate-600">${dateLabel}</p></div>
                     <div class="text-right"><p class="text-xs font-bold">$${t.amount}</p><p class="text-[8px] uppercase ${t.status==='Approved'?'text-green-500':'text-orange-500'}">${t.status}</p></div>
                 </div>`;
             }).join('');
-            document.getElementById('pendD').innerText = "$"+pD; document.getElementById('pendW').innerText = "$"+pW;
-            document.getElementById('totalW').innerText = "$"+tW; document.getElementById('hBox').innerHTML = html || "No history";
+            
+            document.getElementById('pendD').innerText = "$"+pD.toFixed(2); 
+            document.getElementById('pendW').innerText = "$"+pW.toFixed(2);
+            document.getElementById('totalW').innerText = "$"+tW.toFixed(2); 
+            document.getElementById('hBox').innerHTML = html || '<p class="text-center text-slate-600 text-[10px]">No History Yet</p>';
         }
 
         window.doWithdraw = async () => {
             const amt = Number(document.getElementById('wA').value);
             const addr = document.getElementById('wAddr').value.trim();
-            if(amt < 30 || amt > uData.investment) return alert("Invalid Amount or Insufficient Capital");
+            if(amt < 30 || amt > (uData.investment || 0)) return alert("Invalid Amount or Insufficient Capital");
             if(!addr) return alert("Please enter your USDT TRC20 address");
             
-            if(uData.lastWithdrawalDate && (new Date() - uData.lastWithdrawalDate.toDate())/3600000 < 24) return alert("Limit: 1 per 24h");
+            // 24-hour check
+            if(uData.lastWithdrawalDate) {
+                const hoursSince = (new Date() - uData.lastWithdrawalDate.toDate())/3600000;
+                if(hoursSince < 24) return alert("Limit: 1 withdrawal per 24h. Wait " + (24 - hoursSince).toFixed(1) + " hours.");
+            }
             
             try {
-                // Deduct from capital immediately
                 await updateDoc(doc(db, "users", auth.currentUser.uid), { 
                     investment: uData.investment - amt, 
                     lastWithdrawalDate: serverTimestamp() 
                 });
-                // Log transaction with wallet address
                 await setDoc(doc(collection(db, "transactions")), { 
                     uid: auth.currentUser.uid, 
                     type: "Withdrawal", 
@@ -86,16 +123,27 @@
                     status: "Pending", 
                     timestamp: serverTimestamp() 
                 });
-                alert("Withdrawal Requested! Capital has been updated.");
-            } catch (e) { alert(e.message); }
+                alert("Withdrawal Requested!");
+            } catch (e) { alert("Error: " + e.message); }
         };
 
         window.doDeposit = async () => {
             const amt = Number(document.getElementById('dA').value);
-            const tx = document.getElementById('dT').value;
+            const tx = document.getElementById('dT').value.trim();
             if(amt < 40 || !tx) return alert("Min $40 + TXID required");
-            await setDoc(doc(collection(db, "transactions")), { uid: auth.currentUser.uid, type: "Deposit", amount: amt, txid: tx, status: "Pending", timestamp: serverTimestamp() });
-            alert("Deposit Submitted!");
+            try {
+                await setDoc(doc(collection(db, "transactions")), { 
+                    uid: auth.currentUser.uid, 
+                    type: "Deposit", 
+                    amount: amt, 
+                    txid: tx, 
+                    status: "Pending", 
+                    timestamp: serverTimestamp() 
+                });
+                alert("Deposit Submitted! Admin will verify TXID.");
+                document.getElementById('dA').value = "";
+                document.getElementById('dT').value = "";
+            } catch (e) { alert(e.message); }
         };
     </script>
     <style>
@@ -161,7 +209,7 @@
     </div>
 
     <p class="text-[10px] font-black uppercase text-slate-600 px-4 mb-3 tracking-widest">Transaction History</p>
-    <div id="hBox" class="space-y-2"></div>
+    <div id="hBox" class="space-y-2 mb-10"></div>
 
 </body>
 </html>
