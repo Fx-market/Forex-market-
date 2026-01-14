@@ -3,120 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FX Market | Dashboard</title>
+    <title>FX Market | Elite Dashboard</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; margin: 0; padding: 20px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #334155; }
-        .balance-box { text-align: center; background: linear-gradient(135deg, #38bdf8, #1d4ed8); color: white; }
-        h1 { font-size: 2.5rem; margin: 10px 0; }
-        .ref-box { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px dashed #38bdf8; word-break: break-all; cursor: pointer; }
-        .label { color: #94a3b8; font-size: 0.9rem; margin-bottom: 5px; }
-        button { background: #38bdf8; color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; --accent: #22c55e; --danger: #ef4444; --gold: #fbbf24; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: white; margin: 0; padding: 15px; }
+        .container { max-width: 480px; margin: auto; }
+        
+        /* News Section */
+        .news-card { background: linear-gradient(90deg, #1e293b, #334155); padding: 15px; border-radius: 12px; border-left: 4px solid var(--primary); margin-bottom: 20px; font-size: 0.85rem; line-height: 1.4; }
+        
+        /* Balance Card */
+        .main-balance { background: linear-gradient(135deg, #0ea5e9, #2563eb); padding: 30px 20px; border-radius: 24px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.4); margin-bottom: 20px; }
+        .main-balance h1 { font-size: 2.8rem; margin: 5px 0; font-family: monospace; }
+        
+        /* General Card Style */
+        .card { background: var(--card); padding: 18px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 15px; }
+        .label { color: #94a3b8; font-size: 0.7rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; display: block; }
+        
+        /* Deposit/Ref Box */
+        .data-box { background: #0f172a; padding: 12px; border-radius: 10px; border: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; margin-top: 5px; }
+        .address-text { font-size: 0.65rem; color: var(--primary); font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 75%; }
+        .copy-btn { background: var(--primary); color: #0f172a; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
+
+        input { background: #0f172a; border: 1px solid #334155; color: white; width: 100%; padding: 12px; border-radius: 8px; margin-top: 10px; box-sizing: border-box; outline: none; }
+        .action-btn { background: var(--primary); color: var(--bg); border: none; width: 100%; padding: 14px; border-radius: 10px; font-weight: bold; margin-top: 15px; cursor: pointer; }
+        
+        /* Stats Grid */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .stat-item { background: #0f172a; padding: 12px; border-radius: 10px; text-align: center; }
+        .timer { color: var(--gold); font-family: monospace; font-size: 1.1rem; }
+
+        .history-item { font-size: 0.75rem; padding: 10px 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-    <div class="card balance-box">
-        <div class="label" style="color: white; opacity: 0.8;">Total Balance (Live ROI)</div>
-        <h1 id="totalBalance">$0.00</h1>
-        <div class="stats-grid">
-            <div>
-                <div class="label" style="color: white;">Trading Capital</div>
-                <div id="tradingCapital" style="font-weight: bold;">$0.00</div>
-            </div>
-            <div>
-                <div class="label" style="color: white;">Daily ROI</div>
-                <div style="font-weight: bold;">4.5%</div>
-            </div>
+<div class="container">
+    <div class="news-card">
+        <span class="label" style="color: var(--primary);">Platform News</span>
+        <div id="newsPanel">Loading updates...</div>
+    </div>
+
+    <div class="main-balance">
+        <span class="label" style="color: rgba(255,255,255,0.8);">Live Profit Balance</span>
+        <h1 id="liveBalance">$0.0000</h1>
+        <div class="grid" style="margin-top: 15px;">
+            <div><small>Capital</small><br><b id="capDisplay">$0.00</b></div>
+            <div><small>Daily ROI</small><br><b>4.5%</b></div>
         </div>
     </div>
 
     <div class="card">
-        <h2>Your Referral Link</h2>
-        <p class="label">Share this link to earn team commissions</p>
-        <div class="ref-box" id="referralLink" onclick="copyLink()">Loading link...</div>
-        <button onclick="copyLink()">Copy Referral Link</button>
+        <span class="label">Deposit Funds (TRC-20)</span>
+        <div style="font-size: 0.75rem; margin-bottom: 5px;">Min Deposit: $40</div>
+        <div class="data-box">
+            <span class="address-text" id="adminAddr">TVdqCKjuE7yMPzpgzHDBpMtQ5HHfh9xk6j</span>
+            <button class="copy-btn" onclick="copyText('adminAddr')">COPY</button>
+        </div>
+        <input type="number" id="depAmt" placeholder="Amount Sent (USD)">
+        <input type="text" id="depTxid" placeholder="Transaction ID (TXID)">
+        <button class="action-btn" style="background: var(--accent); color: white;" onclick="handleDeposit()">Submit Deposit</button>
     </div>
 
     <div class="card">
-        <button onclick="window.location.href='deposit.html'" style="background: #22c55e; color: white;">Deposit Funds</button>
-        <button onclick="window.location.href='withdraw.html'" style="background: #ef4444; color: white;">Withdraw Profits</button>
-        <button onclick="firebase.auth().signOut()" style="background: #64748b; color: white; margin-top: 20px;">Logout</button>
+        <span class="label">Team & Salary Status</span>
+        <div class="grid">
+            <div class="stat-item"><small>Active Team</small><br><b id="activeCount">0</b></div>
+            <div class="stat-item"><small>Inactive</small><br><b id="inactiveCount">0</b></div>
+        </div>
+        <div style="margin-top:15px; text-align: center;">
+            <div class="label">Next Salary Payout (10th Monthly)</div>
+            <div class="timer" id="salaryTimer">00d 00h 00m 00s</div>
+            <div id="salaryStatus" style="font-size: 0.8rem; margin-top: 5px; color: var(--danger);">Status: Not Qualified</div>
+        </div>
     </div>
 
-    <script>
-        // YOUR FIREBASE CONFIG
-        const firebaseConfig = {
-          apiKey: "AIzaSyAjFTRa3-bnELvxH3Q4SqtqS47-foVxo38",
-          authDomain: "forex-market-86c48.firebaseapp.com",
-          projectId: "forex-market-86c48",
-          storageBucket: "forex-market-86c48.firebasestorage.app",
-          messagingSenderId: "830051911841",
-          appId: "1:830051911841:web:c40bd03bed0613114248e0",
-          measurementId: "G-WB9HQ1R6QJ"
-        };
+    <div class="card">
+        <span class="label">Referral Link (L1: 8% | L2: 6% | L3: 4%)</span>
+        <div class="data-box">
+            <span class="address-text" id="refLink">Loading...</span>
+            <button class="copy-btn" onclick="copyText('refLink')">COPY</button>
+        </div>
+    </div>
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+    <div class="card">
+        <span class="label">Withdraw Funds</span>
+        <div style="font-size: 0.75rem; margin-bottom: 5px;">Min: $30 | 1 request per 24h</div>
+        <input type="number" id="withAmt" placeholder="Amount (USD)">
+        <input type="text" id="userWallet" placeholder="Your USDT TRC-20 Address">
+        <button class="action-btn" style="background: var(--danger); color: white;" onclick="handleWithdraw()">Request Withdrawal</button>
+    </div>
 
-        firebase.auth().onAuthStateChanged((user) => {
-            if (user) {
-                // Listen for data changes in real-time
-                db.collection("users").doc(user.uid).onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const data = doc.data();
+    <div class="card">
+        <span class="label">Transaction History</span>
+        <div id="historyBox">No history found.</div>
+    </div>
 
-                        // 1. GENERATE REFERRAL LINK
-                        // This detects your current website address automatically
-                        const currentUrl = window.location.href;
-                        const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/')) + "/index.html";
-                        const refLink = `${baseUrl}?ref=${data.username || 'user'}`;
-                        document.getElementById('referralLink').innerText = refLink;
+    <button class="action-btn" style="background: #334155; color: white; margin-bottom: 30px;" onclick="firebase.auth().signOut()">Logout</button>
+</div>
 
-                        // 2. LIVE ROI CALCULATION (4.5% Daily)
-                        if (data.investment && data.approvedDate) {
-                            function updateLiveBalance() {
-                                const investment = parseFloat(data.investment);
-                                const startTimestamp = data.approvedDate.toDate().getTime();
-                                const now = new Date().getTime();
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAjFTRa3-bnELvxH3Q4SqtqS47-foVxo38",
+      authDomain: "forex-market-86c48.firebaseapp.com",
+      projectId: "forex-market-86c48",
+      storageBucket: "forex-market-86c48.firebasestorage.app",
+      messagingSenderId: "830051911841",
+      appId: "1:830051911841:web:c40bd03bed0613114248e0"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-                                // Calculate exact time difference in days (including decimals for smooth growth)
-                                const diffDays = (now - startTimestamp) / (1000 * 60 * 60 * 24);
-                                
-                                // Profit = Capital * 4.5% * Days
-                                const profit = investment * 0.045 * diffDays;
-                                const currentTotal = investment + profit;
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) { loadUserData(user); } 
+        else { window.location.href = "index.html"; }
+    });
 
-                                document.getElementById('totalBalance').innerText = "$" + currentTotal.toFixed(4);
-                                document.getElementById('tradingCapital').innerText = "$" + investment.toFixed(2);
-                            }
-                            
-                            // Update every 1 second for a "Live" feel
-                            setInterval(updateLiveBalance, 1000);
-                            updateLiveBalance();
-                        }
-                    }
-                });
-            } else {
-                window.location.href = "index.html";
-            }
+    function loadUserData(user) {
+        // News
+        db.collection("settings").doc("platform").onSnapshot(doc => {
+            if(doc.exists) document.getElementById('newsPanel').innerText = doc.data().news;
         });
 
-        function copyLink() {
-            const linkText = document.getElementById('referralLink').innerText;
-            const tempInput = document.createElement("input");
-            document.body.appendChild(tempInput);
-            tempInput.value = linkText;
-            tempInput.select();
-            document.execCommand("copy");
-            document.body.removeChild(tempInput);
-            alert("Referral Link Copied!");
-        }
-    </script>
+        // User Stats
+        db.collection("users").doc(user.uid).onSnapshot(doc => {
+            const data = doc.data();
+            const username = data.username || "user";
+            
+            // Ref Link
+            const link = window.location.origin + "/index.html?ref=" + username;
+            document.getElementById('refLink').innerText = link;
+
+            // ROI Calculation
+            if(data.investment && data.approvedDate) {
+                setInterval(() => {
+                    const now = new Date().getTime();
+                    const start = data.approvedDate.toDate().getTime();
+                    const diff = (now - start) / (1000 * 60 * 60 * 24);
+                    const bal = data.investment + (data.investment * 0.045 * diff);
+                    document.getElementById('liveBalance').innerText = "$" + bal.toFixed(5);
+                    document.getElementById('capDisplay').innerText = "$" + data.investment.toFixed(2);
+                }, 1000);
+            }
+
+            // Team Stats
+            db.collection("users").where("referredBy", "==", username).onSnapshot(snap => {
+                let active = 0, inactive = 0;
+                snap.forEach(u => { 
+                    if(u.data().investment >= 40) active++; 
+                    else inactive++;
+                });
+                document.getElementById('activeCount').innerText = active;
+                document.getElementById('inactiveCount').innerText = inactive;
+
+                // Salary Criteria Check
+                if(active >= 10 && data.investment >= 1000) {
+                    document.getElementById('salaryStatus').innerText = "Status: QUALIFIED ($150)";
+                    document.getElementById('salaryStatus').style.color = "var(--accent)";
+                }
+            });
+        });
+
+        // History
+        db.collection("transactions").where("uid", "==", user.uid).orderBy("timestamp", "desc").onSnapshot(snap => {
+            const h = document.getElementById('historyBox');
+            h.innerHTML = snap.empty ? "No records." : "";
+            snap.forEach(doc => {
+                const t = doc.data();
+                const date = t.timestamp ? t.timestamp.toDate().toLocaleString() : 'Pending';
+                h.innerHTML += `<div class="history-item">
+                    <span>${t.type.toUpperCase()} ($${t.amount})</span>
+                    <span style="color:${t.status=='Approved'?'#22c55e':'#fbbf24'}">${t.status} - ${date}</span>
+                </div>`;
+            });
+        });
+    }
+
+    // Timer Logic
+    function runTimer() {
+        const now = new Date();
+        let target = new Date(now.getFullYear(), now.getMonth(), 10);
+        if (now.getDate() >= 10) target.setMonth(target.getMonth() + 1);
+        const diff = target - now;
+        const d = Math.floor(diff / 864e5), h = Math.floor((diff % 864e5) / 36e5), m = Math.floor((diff % 36e5) / 6e4), s = Math.floor((diff % 6e4) / 1000);
+        document.getElementById('salaryTimer').innerText = `${d}d ${h}h ${m}m ${s}s`;
+    }
+    setInterval(runTimer, 1000);
+
+    function copyText(id) {
+        const t = document.getElementById(id).innerText;
+        navigator.clipboard.writeText(t).then(() => alert("Copied!"));
+    }
+
+    async function handleDeposit() {
+        const amt = parseFloat(document.getElementById('depAmt').value);
+        const tx = document.getElementById('depTxid').value;
+        if(amt < 40 || !tx) return alert("Min $40 and TXID required!");
+        await db.collection("transactions").add({
+            uid: firebase.auth().currentUser.uid,
+            amount: amt, txid: tx, type: "deposit", status: "Pending",
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        alert("Submitted!");
+    }
+
+    async function handleWithdraw() {
+        const amt = parseFloat(document.getElementById('withAmt').value);
+        const wal = document.getElementById('userWallet').value;
+        if(amt < 30 || !wal) return alert("Min $30 and wallet required!");
+        // Logic for 24h check would go here
+        await db.collection("transactions").add({
+            uid: firebase.auth().currentUser.uid,
+            amount: amt, wallet: wal, type: "withdrawal", status: "Pending",
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        alert("Request Sent!");
+    }
+</script>
 </body>
 </html>
