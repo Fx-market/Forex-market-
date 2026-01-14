@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FX Market | Secure Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjFTRa3-bnELvxH3Q4SqtqS47-foVxo38",
+            authDomain: "forex-market-86c48.firebaseapp.com",
+            projectId: "forex-market-86c48",
+            storageBucket: "forex-market-86c48.firebasestorage.app",
+            messagingSenderId: "830051911841",
+            appId: "1:830051911841:web:c40bd03bed0613114248e0"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const ref = params.get('ref') || "admin";
+            document.getElementById('refLabel').innerText = "Invited by: " + ref;
+            localStorage.setItem('join_ref', ref);
+        };
+
+        window.processAuth = async (mode) => {
+            const email = document.getElementById('em').value;
+            const pass = document.getElementById('pw').value;
+            const user = document.getElementById('un').value.trim().toLowerCase();
+            const ref = localStorage.getItem('join_ref') || "admin";
+
+            try {
+                if(mode === 'signup') {
+                    if(!user) return alert("Enter Username");
+                    const res = await createUserWithEmailAndPassword(auth, email, pass);
+                    await setDoc(doc(db, "users", res.user.uid), {
+                        username: user, email, referredBy: ref, investment: 0, createdAt: serverTimestamp()
+                    });
+                } else {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                }
+                window.location.href = "dashboard.html";
+            } catch (e) { alert(e.message); }
+        };
+    </script>
+</head>
+<body class="bg-[#020617] text-white flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-sm bg-slate-900/40 p-8 rounded-[40px] border border-white/5 backdrop-blur-xl">
+        <h1 class="text-3xl font-black text-yellow-500 text-center italic mb-2 uppercase">FX Market</h1>
+        <p id="refLabel" class="text-[10px] text-slate-500 text-center uppercase tracking-widest mb-8">Secure Access</p>
+        <div class="space-y-3">
+            <input id="un" type="text" placeholder="Username (Signup only)" class="w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-sm outline-none">
+            <input id="em" type="email" placeholder="Email" class="w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-sm outline-none">
+            <input id="pw" type="password" placeholder="Password" class="w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-sm outline-none">
+            <div class="grid grid-cols-2 gap-3 pt-4">
+                <button onclick="processAuth('login')" class="bg-slate-800 py-4 rounded-2xl text-xs font-black uppercase">Login</button>
+                <button onclick="processAuth('signup')" class="bg-yellow-500 text-black py-4 rounded-2xl text-xs font-black uppercase">Join</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
